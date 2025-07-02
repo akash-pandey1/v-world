@@ -9,6 +9,7 @@ import { RealmData, Tool, TileMode, SpecialTile, Layer } from '@/utils/pixi/type
 import signal from '@/utils/signal'
 import { useModal } from '../hooks/useModal'
 import { SheetName } from '@/utils/pixi/spritesheet/spritesheet'
+import { useRouter, useParams } from 'next/navigation'
 
 type EditorProps = {
     realmData: RealmData
@@ -32,6 +33,8 @@ const Editor:React.FC<EditorProps> = ({ realmData }) => {
     const [rooms, setRooms] = useState<string[]>(realmData.rooms.map(room => room.name))
     const [roomIndex, setRoomIndex] = useState<number>(0)
     const [selectedPalette, setSelectedPalette] = useState<SheetName>(palettes[0])
+    const router = useRouter()
+    const params = useParams()
 
     function selectTool(tool:Tool) {
         if (gameLoaded === false) return
@@ -88,7 +91,6 @@ const Editor:React.FC<EditorProps> = ({ realmData }) => {
     }
 
     useEffect(() => {
-
         signal.on('tileSelected', onTileSelected)
         signal.on('resetSpecialTileMode', onResetSpecialTileMode)
         signal.on('placeTeleporter', onPlaceTeleporter)
@@ -99,6 +101,32 @@ const Editor:React.FC<EditorProps> = ({ realmData }) => {
             signal.off('placeTeleporter', onPlaceTeleporter)
         }
     }, [gameLoaded])
+
+    useEffect(() => {
+        // Listen for save signal
+        const handleSave = async (data: any) => {
+            // Only create a new realm if on /editor/new (no id param)
+            if (!params?.id) {
+                const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null
+                if (!token) return
+                try {
+                    const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify({ name: data.rooms[0]?.name || 'Home', map_data: data })
+                    })
+                    if (res.ok) {
+                        router.push('/app')
+                    }
+                } catch {}
+            }
+        }
+        signal.on('save', handleSave)
+        return () => signal.off('save', handleSave)
+    }, [params, router])
 
     return (
         <div className='relative w-full h-screen flex flex-col'>

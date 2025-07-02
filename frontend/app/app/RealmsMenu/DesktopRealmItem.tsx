@@ -98,7 +98,7 @@ const DesktopRealmItem:React.FC<DesktopRealmItemProps> = ({ name, id, shareId, s
                 </div>)}
             </div>
             {showMenu && (
-                <div className='absolute w-36 h-24 rounded-lg bg-white right-0 flex flex-col z-10 text-black' ref={menuRef}>
+                <div className='absolute w-36 h-24 rounded-lg bg-white right-0 flex flex-col z-50 text-black' ref={menuRef}>
                     <button className='grow w-full hover:bg-[#B2C5FF] rounded-t-lg text-left pl-4' onClick={() => router.push(`/editor/${id}`)}>
                         Edit Map
                     </button>

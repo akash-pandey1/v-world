@@ -158,31 +158,25 @@ export default function routes(): Router {
 
       // Load default map from frontend/utils/defaultmap.json
       const defaultMapPath = path.join(__dirname, '../../frontend/utils/defaultmap.json');
-      let defaultMap = { rooms: [{ name: 'Home', tilemap: {} }] };
+      let defaultMap = { rooms: [{ name: 'Home', tilemap: {} }], spawnpoint: { roomIndex: 0, x: 0, y: 0 } };
       try {
         const raw = fs.readFileSync(defaultMapPath, 'utf-8');
         defaultMap = JSON.parse(raw);
       } catch (e) {
         // fallback to empty map if file not found
       }
-      // Ensure at least one room with a valid tilemap
-      if (!Array.isArray(defaultMap.rooms) || defaultMap.rooms.length === 0) {
-        defaultMap.rooms = [{ name: 'Home', tilemap: {} }];
-      } else {
-        defaultMap.rooms = defaultMap.rooms.map((room: any) => ({
-          ...room,
-          tilemap: room.tilemap || {}
-        }));
-      }
+      // Use the defaultMap as-is for map_data
+      const map_data = {
+        rooms: defaultMap.rooms,
+        spawnpoint: defaultMap.spawnpoint || { roomIndex: 0, x: 0, y: 0 }
+      };
+      console.log('Rooms to be saved:', defaultMap.rooms);
 
       const share_id = `share-${Date.now()}-${Math.floor(Math.random()*10000)}`;
       const newRealm = new Realm({
         owner_id: userId,
         name,
-        map_data: {
-          spawnpoint: { roomIndex: 0, x: 0, y: 0 },
-          rooms: defaultMap.rooms
-        },
+        map_data,
         share_id,
         only_owner: false,
       });
@@ -195,6 +189,15 @@ export default function routes(): Router {
       const realm = await Realm.findOne({ share_id: req.params.shareId });
       if (!realm) return res.status(404).json({ error: 'Realm not found' });
       res.json({ realm: sanitizeRealm(realm) });
+    });
+
+    // Delete a realm by ID for the authenticated user
+    router.delete('/realms/:id', async (req, res) => {
+      const userId = (req as AuthRequest).user.id;
+      const { id } = req.params;
+      const deleted = await Realm.findOneAndDelete({ _id: id, owner_id: userId });
+      if (!deleted) return res.status(404).json({ error: 'Realm not found or not owned by user' });
+      res.json({ success: true });
     });
 
     return router
