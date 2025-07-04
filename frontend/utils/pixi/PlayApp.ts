@@ -6,6 +6,7 @@ import { server } from '../backend/server'
 import { defaultSkin } from './Player/skins'
 import signal from '../signal'
 import { gsap } from 'gsap'
+import { Socket } from 'socket.io-client'
 
 export class PlayApp extends App {
     private scale: number = 1.5
@@ -28,11 +29,14 @@ export class PlayApp extends App {
     private currentPrivateAreaTiles: TilePoint[] = []
     public proximityId: string | null = null
 
-    constructor(uid: string, realmId: string, realmData: RealmData, username: string, skin: string = defaultSkin) {
+    private socket: Socket | null = null
+
+    constructor(uid: string, realmId: string, realmData: RealmData, username: string, skin: string = defaultSkin, socket: Socket | null = null) {
         super(realmData)
         this.uid = uid
         this.realmId = realmId
         this.player = new Player(skin, this, username, true)
+        this.socket = socket
     }
 
     override async loadRoom(index: number) {
@@ -233,6 +237,10 @@ export class PlayApp extends App {
             const { x, y } = this.convertScreenToTileCoordinates(clickPosition.x, clickPosition.y)
             this.player.moveToTile(x, y)
             this.player.setMovementMode('mouse')
+            // Emit movePlayer to backend
+            if (this.socket) {
+                this.socket.emit('movePlayer', { x, y })
+            }
         })
     }
 
@@ -334,6 +342,7 @@ export class PlayApp extends App {
     }
 
     private onPlayerMoved = (data: any) => {
+        console.log('[FRONTEND] onPlayerMoved received:', data);
         if (this.blocked.has(`${data.x}, ${data.y}`)) return
 
         const player = this.players[data.uid]
@@ -442,29 +451,29 @@ export class PlayApp extends App {
     }
 
     private setUpSocketEvents = () => {
-        // Commented out all server.socket event handlers for single-player mode
-        // server.socket.on('playerLeftRoom', this.onPlayerLeftRoom)
-        // server.socket.on('playerJoinedRoom', this.onPlayerJoinedRoom)
-        // server.socket.on('playerMoved', this.onPlayerMoved)
-        // server.socket.on('playerTeleported', this.onPlayerTeleported)
-        // server.socket.on('playerChangedSkin', this.onPlayerChangedSkin)
-        // server.socket.on('receiveMessage', this.onReceiveMessage)
-        // server.socket.on('disconnect', this.onDisconnect)
-        // server.socket.on('kicked', this.onKicked)
-        // server.socket.on('proximityUpdate', this.onProximityUpdate)
+        if (!this.socket) return;
+        this.socket.on('playerLeftRoom', this.onPlayerLeftRoom)
+        this.socket.on('playerJoinedRoom', this.onPlayerJoinedRoom)
+        this.socket.on('playerMoved', this.onPlayerMoved)
+        this.socket.on('playerTeleported', this.onPlayerTeleported)
+        this.socket.on('playerChangedSkin', this.onPlayerChangedSkin)
+        this.socket.on('receiveMessage', this.onReceiveMessage)
+        this.socket.on('disconnect', this.onDisconnect)
+        this.socket.on('kicked', this.onKicked)
+        this.socket.on('proximityUpdate', this.onProximityUpdate)
     }
 
     private removeSocketEvents = () => {
-        // Commented out all server.socket event removals for single-player mode
-        // server.socket.off('playerLeftRoom', this.onPlayerLeftRoom)
-        // server.socket.off('playerJoinedRoom', this.onPlayerJoinedRoom)
-        // server.socket.off('playerMoved', this.onPlayerMoved)
-        // server.socket.off('playerTeleported', this.onPlayerTeleported)
-        // server.socket.off('playerChangedSkin', this.onPlayerChangedSkin)
-        // server.socket.off('receiveMessage', this.onReceiveMessage)
-        // server.socket.off('disconnect', this.onDisconnect)
-        // server.socket.off('kicked', this.onKicked)
-        // server.socket.off('proximityUpdate', this.onProximityUpdate)
+        if (!this.socket) return;
+        this.socket.off('playerLeftRoom', this.onPlayerLeftRoom)
+        this.socket.off('playerJoinedRoom', this.onPlayerJoinedRoom)
+        this.socket.off('playerMoved', this.onPlayerMoved)
+        this.socket.off('playerTeleported', this.onPlayerTeleported)
+        this.socket.off('playerChangedSkin', this.onPlayerChangedSkin)
+        this.socket.off('receiveMessage', this.onReceiveMessage)
+        this.socket.off('disconnect', this.onDisconnect)
+        this.socket.off('kicked', this.onKicked)
+        this.socket.off('proximityUpdate', this.onProximityUpdate)
     }
 
     private removeEvents = () => {
@@ -482,5 +491,22 @@ export class PlayApp extends App {
     public destroy() {
         this.removeEvents()
         super.destroy()
+    }
+
+    // Add this method to sync all players from the socket event
+    public async syncPlayersFromSocket(players: any[]) {
+        const currentUids = new Set(Object.keys(this.players));
+        const incomingUids = new Set<string>();
+        for (const player of players) {
+            if (player.uid === this.uid) continue; // skip local player
+            incomingUids.add(player.uid);
+            await this.updatePlayer(player.uid, player);
+        }
+        // Remove players that are no longer present
+        for (const uid of currentUids) {
+            if (!incomingUids.has(uid)) {
+                this.onPlayerLeftRoom(uid);
+            }
+        }
     }
 }

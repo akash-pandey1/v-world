@@ -55,13 +55,20 @@ export class SessionManager {
     private socketIdToPlayerId: { [key: string]: string } = {}
 
     public createSession(id: string, mapData: RealmData): void {
+        console.log(`[SessionManager] Creating session for realmId=${id}, rooms.length=${mapData.rooms?.length}`);
         const realm = new Session(id, mapData)
 
         this.sessions[id] = realm
     }
 
     public getSession(id: string): Session {
-        return this.sessions[id]
+        const session = this.sessions[id]
+        if (session) {
+            console.log(`[SessionManager] getSession: Found session for realmId=${id}, rooms.length=${session.map_data.rooms?.length}`);
+        } else {
+            console.log(`[SessionManager] getSession: No session for realmId=${id}`);
+        }
+        return session
     }
 
     public getPlayerSession(uid: string): Session {
@@ -136,6 +143,11 @@ export class Session {
         const spawnIndex = this.map_data.spawnpoint.roomIndex
         const spawnX = this.map_data.spawnpoint.x
         const spawnY = this.map_data.spawnpoint.y
+
+        console.log(`[Session] addPlayer: spawnIndex=${spawnIndex}, rooms.length=${this.map_data.rooms.length}`);
+        if (!this.playerRooms.hasOwnProperty(spawnIndex)) {
+            throw new Error(`[Session] Invalid spawnIndex in addPlayer: ${spawnIndex}. playerRooms: ${JSON.stringify(Object.keys(this.playerRooms))}`);
+        }
 
         const player: Player = {
             uid,

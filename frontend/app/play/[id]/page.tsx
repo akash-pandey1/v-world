@@ -30,6 +30,16 @@ export default function PlayPage({ params }: { params: { id: string } }) {
         }
     }
 
+    // Helper to get or create a guest uid
+    function getOrCreateGuestUid() {
+        let uid = localStorage.getItem('gather_uid');
+        if (!uid) {
+            uid = crypto.randomUUID();
+            localStorage.setItem('gather_uid', uid);
+        }
+        return uid;
+    }
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -64,6 +74,9 @@ export default function PlayPage({ params }: { params: { id: string } }) {
     const { user, access_token } = getUserAndToken();
     const shareId = getShareId();
 
+    const uid = user ? user.id : getOrCreateGuestUid();
+    console.log('[PlayPage] Using uid:', uid);
+
     // Optionally update visited realms if shareId is present and not owner
     // if (shareId && user && realm.owner_id !== user.id) {
     //     updateVisitedRealms(access_token, shareId)
@@ -75,7 +88,7 @@ export default function PlayPage({ params }: { params: { id: string } }) {
             username={user ? formatEmailToName(user.email) : ''} 
             access_token={access_token} 
             realmId={params.id} 
-            uid={user ? user.id : ''} 
+            uid={uid} 
             shareId={shareId} 
             initialSkin={skin}
             name={realm.name}
