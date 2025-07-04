@@ -213,7 +213,21 @@ export default function routes(): Router {
     router.get('/realms/join/:shareId', async (req, res) => {
       const realm = await Realm.findOne({ share_id: req.params.shareId });
       if (!realm) return res.status(404).json({ error: 'Realm not found' });
-      res.json({ realm: sanitizeRealm(realm) });
+      // Load each room's tilemap from file (same as /realms/:id)
+      const map_data = JSON.parse(JSON.stringify(realm.map_data));
+      for (let i = 0; i < map_data.rooms.length; i++) {
+        const room = map_data.rooms[i];
+        if (room.tilemapFile) {
+          const filePath = path.join(tilemapDir, room.tilemapFile);
+          try {
+            const raw = fs.readFileSync(filePath, 'utf-8');
+            room.tilemap = JSON.parse(raw);
+          } catch (e) {
+            room.tilemap = {};
+          }
+        }
+      }
+      res.json({ realm: { ...realm.toObject(), map_data } });
     });
 
     // Delete a realm by ID for the authenticated user
