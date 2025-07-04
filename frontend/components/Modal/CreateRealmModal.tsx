@@ -31,13 +31,22 @@ const CreateRealmModal:React.FC = () => {
             setError('Not authenticated')
             return
         }
+        let body: any = { name: realmName }
+        if (useDefaultMap) {
+            // Deep clone defaultMap and set the room name
+            const mapCopy = JSON.parse(JSON.stringify(defaultMap))
+            if (Array.isArray(mapCopy.rooms) && mapCopy.rooms.length > 0) {
+                mapCopy.rooms[0].name = realmName
+            }
+            body.map_data = mapCopy
+        }
         const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
             },
-            body: JSON.stringify({ name: realmName })
+            body: JSON.stringify(body)
         })
         if (res.ok) {
             setSuccess(true)
@@ -45,8 +54,8 @@ const CreateRealmModal:React.FC = () => {
             setModal('None')
             toast.success('Your space has been created!')
             const data = await res.json()
-            if (data && data.realm && data.realm.id) {
-                router.push(`/editor/${data.realm.id}`)
+            if (data && data.realm && (data.realm.id || data.realm._id)) {
+                router.push(`/editor/${data.realm.id || data.realm._id}`)
             } else {
                 router.push('/app')
             }

@@ -19,6 +19,7 @@ export class App {
 
     constructor(realmData: RealmData) {
         this.realmData = JSON.parse(JSON.stringify(realmData))
+        console.log('realmData', this.realmData)
     }
 
     public async init() {
@@ -75,6 +76,7 @@ export class App {
 
     protected async loadRoom(index: number) {
         const room = this.realmData.rooms[index]
+        console.log('room', room)
         await this.loadRoomFromData(room)
     }
 
