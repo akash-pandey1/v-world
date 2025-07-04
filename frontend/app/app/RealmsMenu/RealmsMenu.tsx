@@ -24,7 +24,6 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms: initialRealms, errorMess
 
     const [selectedRealm, setSelectedRealm] = useState<Realm | null>(null)
     const [playerCounts, setPlayerCounts] = useState<number[]>([])
-    const [newRealmName, setNewRealmName] = useState('');
     const [createError, setCreateError] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [realms, setRealms] = useState<Realm[]>(initialRealms);
@@ -81,56 +80,12 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms: initialRealms, errorMess
         }
     }
 
-    async function handleCreateRealm(e: React.FormEvent) {
-        e.preventDefault();
-        setCreateError('');
-        setIsCreating(true);
-        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-        if (!token) {
-            setCreateError('Not authenticated');
-            setIsCreating(false);
-            return;
-        }
-        try {
-            const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ name: newRealmName })
-            });
-            const data = await res.json();
-            if (!res.ok) {
-                setCreateError(data.message || 'Failed to create space');
-            } else {
-                setNewRealmName('');
-                setCreateError('');
-                await fetchRealms(); // fetch updated list
-            }
-        } catch (err) {
-            setCreateError('Failed to create space');
-        }
-        setIsCreating(false);
-    }
+ 
 
     return (
         <>
             {/* Create Space Form (Desktop Only) */}
-            <form onSubmit={handleCreateRealm} className='hidden sm:flex flex-row gap-2 mb-6 items-center'>
-                <input
-                    type='text'
-                    value={newRealmName}
-                    onChange={e => setNewRealmName(e.target.value)}
-                    placeholder='New space name...'
-                    className='border p-2 rounded bg-white text-gray-900'
-                    required
-                />
-                <button type='submit' className='bg-blue-600 text-white p-2 rounded hover:bg-blue-700' disabled={isCreating}>
-                    {isCreating ? 'Creating...' : 'Create Space'}
-                </button>
-                {createError && <span className='text-red-500 text-sm ml-2'>{createError}</span>}
-            </form>
+      
             {/* Mobile View */}
             <div className='flex flex-col items-center p-4 gap-2 sm:hidden'>
                 {realms.length === 0 && <p className='text-center'>You have no spaces you can join. Create one on desktop to get started!</p>}
@@ -198,13 +153,34 @@ const RealmsMenu:React.FC<RealmsMenuProps> = ({ realms: initialRealms, errorMess
                       setJoinError('');
                       if (!joinShareId) return;
                       try {
-                        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms/join/${joinShareId}`);
-                        const data = await res.json();
-                        if (!res.ok || !data.realm) {
-                          setJoinError('Room not found');
+                        let realmId = '';
+                        let shareId = '';
+                        // Try to extract from a full URL
+                        const urlPattern = /\/play\/([a-fA-F0-9]+)(?:\?shareId=([\w-]+))?/;
+                        const match = joinShareId.match(urlPattern);
+                        if (match) {
+                          realmId = match[1];
+                          shareId = match[2] || '';
+                        } else if (/^share-/.test(joinShareId)) {
+                          // Only shareId provided, resolve realmId from backend
+                          shareId = joinShareId;
+                          const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms/join/${shareId}`);
+                          const data = await res.json();
+                          if (!res.ok || !data.realm) {
+                            setJoinError('Room not found');
+                            return;
+                          }
+                          realmId = data.realm._id;
                         } else {
-                          router.push(`/play/${data.realm._id}?shareId=${joinShareId}`);
+                          setJoinError('Invalid link or Share ID');
+                          return;
                         }
+                        if (!realmId || !shareId) {
+                          setJoinError('Invalid link or Share ID');
+                          return;
+                        }
+                        // Navigate to the correct play URL
+                        router.push(`/play/${realmId}?shareId=${shareId}`);
                       } catch {
                         setJoinError('Room not found');
                       }
