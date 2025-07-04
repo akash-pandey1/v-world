@@ -34,7 +34,8 @@ const TileSchema = new Schema({
 
 const RoomSchema = new Schema({
   name: { type: String, required: true },
-  tilemap: { type: Schema.Types.Mixed, required: true }, // tilemap is a record of string -> TileSchema
+  tilemap: { type: Schema.Types.Mixed, required: false }, // tilemap is now optional
+  tilemapFile: { type: String, required: false }, // reference to tilemap file
   channelId: { type: String },
 }, { _id: false });
 
