@@ -55,7 +55,7 @@ io.use((socket, next) => {
   }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+const JWT_SECRET = process.env.JWT_SECRET ;
 if (!JWT_SECRET) {
   throw new Error('JWT_SECRET environment variable is required');
 }
@@ -95,8 +95,16 @@ function onRealmDelete(payload: any) {
 }
 
 const PORT = process.env.PORT || 3001
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}.`)
+const portNumber = parseInt(PORT.toString(), 10)
+
+if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
+  throw new Error(`Invalid PORT: ${PORT}. Must be a number between 1 and 65535`);
+}
+
+server.listen(portNumber, () => {
+  console.log(`🚀 V-World server is running on port ${portNumber}`)
+  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
+  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
 })
 
 
