@@ -132,7 +132,7 @@ export class PlayApp extends App {
         this.sortObjectsByY()
     }
 
-    private async updatePlayer(uid: string, player: any) {
+    public async updatePlayer(uid: string, player: any) {
         console.log(`[PlayApp] updatePlayer called: uid=${uid}, player=`, player);
         if (uid in this.players) {
             console.log(`[PlayApp] Updating existing player: ${uid}`);
@@ -332,7 +332,7 @@ export class PlayApp extends App {
         this.player.destroy()
     }
 
-    private onPlayerLeftRoom = (uid: string) => {
+    public onPlayerLeftRoom = (uid: string) => {
         console.log('[FRONTEND] Player left room:', uid);
         if (this.players[uid]) {
             console.log('[FRONTEND] Removing player from scene:', uid);
@@ -514,14 +514,12 @@ export class PlayApp extends App {
 
     // Add this method to sync all players from the socket event
     public async syncPlayersFromSocket(players: any[]) {
-        console.log('[PlayApp] syncPlayersFromSocket called with players:', players);
+        console.log('[PlayApp] syncPlayersFromSocket called with players:', players.map(p => p.uid));
         console.log('[PlayApp] Current players before sync:', Object.keys(this.players));
         console.log('[PlayApp] Local uid:', this.uid);
-        
-        // If we don't have a UID yet, try to find the local player in the players list
+
+        // Set local UID if not set
         if (!this.uid) {
-            // The local player should be the one that's not in our players list yet
-            // and should have the same username as our local player
             for (const player of players) {
                 if (player.username === this.player.username) {
                     this.uid = player.uid;
@@ -530,7 +528,7 @@ export class PlayApp extends App {
                 }
             }
         }
-        
+
         const currentUids = new Set(Object.keys(this.players));
         const incomingUids = new Set<string>();
         for (const player of players) {
@@ -538,13 +536,12 @@ export class PlayApp extends App {
                 console.log('[PlayApp] Skipping local player:', player.uid);
                 continue; // skip local player
             }
-            console.log('[PlayApp] Processing player:', player.uid);
             incomingUids.add(player.uid);
             await this.updatePlayer(player.uid, player);
         }
         // Remove players that are no longer present
         for (const uid of currentUids) {
-            if (!incomingUids.has(uid)) {
+            if (uid !== this.uid && !incomingUids.has(uid)) {
                 console.log('[PlayApp] Removing player:', uid);
                 this.onPlayerLeftRoom(uid);
             }

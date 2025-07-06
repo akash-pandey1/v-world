@@ -74,4 +74,4 @@ v-world/
     - `NEXT_PUBLIC_BACKEND_URL`, Agora keys, etc.
 
 ## License
-MIT (or specify your license) 
+This project is proprietary software. All rights reserved. 
