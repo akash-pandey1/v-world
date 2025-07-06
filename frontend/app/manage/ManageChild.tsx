@@ -34,19 +34,34 @@ const ManageChild:React.FC<ManageChildProps> = ({ realmId, startingShareId, star
         setModal('Loading')
         setLoadingText('Saving...')
 
-        // Replace with backend API call
-        // const { error } = await supabase
-        //     .from('realms')
-        //     .update({ 
-        //             only_owner: onlyOwner,
-        //             name: name,
-        //         })
-        //     .eq('id', realmId)
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                toast.error('Authentication required');
+                setModal('None');
+                return;
+            }
 
-        if (error) {
-            toast.error(error.message)
-        } else {
-            toast.success('Saved!')
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms/${realmId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    name: name,
+                    only_owner: onlyOwner
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to save realm');
+            }
+
+            toast.success('Saved!');
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to save realm');
         }
 
         revalidate('/manage/[id]')
@@ -64,21 +79,37 @@ const ManageChild:React.FC<ManageChildProps> = ({ realmId, startingShareId, star
         setLoadingText('Generating new link...')
 
         const newShareId = uuidv4()
-        // Replace with backend API call
-        // const { error } = await supabase
-        //     .from('realms')
-        //     .update({ 
-        //         share_id: newShareId
-        //         })
-        //     .eq('id', realmId)
+        
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                toast.error('Authentication required');
+                setModal('None');
+                return;
+            }
 
-        if (error) {
-            toast.error(error.message)
-        } else {
+            const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/realms/${realmId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    share_id: newShareId
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.message || 'Failed to generate new link');
+            }
+
             setShareId(newShareId)
             const link = process.env.NEXT_PUBLIC_BASE_URL + '/play/' + realmId + '?shareId=' + newShareId
             navigator.clipboard.writeText(link)
             toast.success('New link copied!')
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to generate new link');
         }
 
         revalidate('/manage/[id]')
