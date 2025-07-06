@@ -16,8 +16,12 @@ const app = express()
 const server = http.createServer(app);
 connectDB();
 
+// Determine frontend URL based on environment
+const isProd = process.env.NODE_ENV === 'production';
+const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
+
 app.use(cors({
-    origin: process.env.FRONTEND_URL
+    origin: frontendUrl
 }))
 
 app.use(express.json({ limit: '20mb' }))
@@ -26,7 +30,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }))
 // Initialize Socket.IO server
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL
+    origin: frontendUrl
   }
 })
 
@@ -104,7 +108,7 @@ if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
 server.listen(portNumber, () => {
   console.log(`🚀 V-World server is running on port ${portNumber}`)
   console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
-  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
+  console.log(`🌐 Frontend URL: ${frontendUrl || 'http://localhost:3000'}`)
 })
 
 
