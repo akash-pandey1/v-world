@@ -55,10 +55,9 @@ const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_t
             // Listen for playerJoinedRoom
             socket.on('playerJoinedRoom', async (player: any) => {
                 console.log('[SOCKET] playerJoinedRoom received:', player);
-                console.log('[SOCKET] playerJoinedRoom details:', { uid: player.uid, username: player.username, x: player.x, y: player.y });
                 if (appRef.current) {
-                    // Use the public method instead of private updatePlayer
-                    await appRef.current.syncPlayersFromSocket([player]);
+                    // Only update/add this player, do NOT call syncPlayersFromSocket!
+                    await appRef.current.updatePlayer(player.uid, player);
                 }
             });
             
@@ -70,6 +69,14 @@ const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_t
                 console.log('[SOCKET] currentPlayers details:', players.map(p => ({ uid: p.uid, username: p.username, x: p.x, y: p.y })));
                 if (appRef.current) {
                     await appRef.current.syncPlayersFromSocket(players);
+                }
+            });
+
+            // Listen for playerLeftRoom (when a player disconnects)
+            socket.on('playerLeftRoom', async (uid: string) => {
+                console.log('[SOCKET] playerLeftRoom received for uid:', uid);
+                if (appRef.current) {
+                    appRef.current.onPlayerLeftRoom(uid);
                 }
             });
             const app = new PlayApp(realmId, mapData, username, initialSkin, socket)

@@ -5,14 +5,16 @@ import { Server as SocketIOServer } from 'socket.io'
 import { sockets } from './sockets/sockets'
 import routes from './routes/routes'
 import { sessionManager } from './session'
-import mongoose from 'mongoose'
 import { expressjwt } from 'express-jwt'
 import jwt from 'jsonwebtoken'
+import { connectDB } from './config/db';
+
 
 require('dotenv').config()
 
 const app = express()
-const server = http.createServer(app)
+const server = http.createServer(app);
+connectDB();
 
 app.use(cors({
     origin: process.env.FRONTEND_URL
@@ -37,6 +39,11 @@ io.use((socket, next) => {
     return next(new Error('Authentication error: No token provided'));
   }
 
+  if (!JWT_SECRET) {
+    console.log('[SOCKET] JWT_SECRET not configured');
+    return next(new Error('Authentication error: Server configuration error'));
+  }
+
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
     socket.data.user = decoded;
@@ -48,7 +55,10 @@ io.use((socket, next) => {
   }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+const JWT_SECRET = process.env.JWT_SECRET ;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 let jwtMiddleware = expressjwt({
   secret: JWT_SECRET,
   algorithms: ['HS256'],
@@ -61,9 +71,7 @@ app.use(routes())
 
 sockets(io)
 
-mongoose.connect('mongodb://localhost:27017/gather-clone')
-  .then(() => console.log('MongoDB connected'))
-  .catch((err) => console.error('MongoDB connection error:', err))
+
 
 function onRealmUpdate(payload: any) {
     const id = payload.new.id
@@ -87,8 +95,16 @@ function onRealmDelete(payload: any) {
 }
 
 const PORT = process.env.PORT || 3001
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}.`)
+const portNumber = parseInt(PORT.toString(), 10)
+
+if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
+  throw new Error(`Invalid PORT: ${PORT}. Must be a number between 1 and 65535`);
+}
+
+server.listen(portNumber, () => {
+  console.log(`🚀 V-World server is running on port ${portNumber}`)
+  console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
+  console.log(`🌐 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`)
 })
 
 

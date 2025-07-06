@@ -18,8 +18,8 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Gather",
-  description: "This is a Gather clone.",
+  title: "V-World",
+  description: "A collaborative virtual space app where users can create and customize their own realms.",
 }
 
 console.log('Rendering layout');

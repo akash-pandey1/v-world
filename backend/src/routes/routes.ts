@@ -4,13 +4,15 @@ import { sessionManager, Player } from '../session'
 import { User } from '../Users'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
-import { expressjwt } from 'express-jwt'
 import { Request as ExpressRequest } from 'express'
 import fs from 'fs'
 import path from 'path'
 import { Realm } from '../Realm'
-
-const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+require('dotenv').config()
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 interface AuthRequest extends ExpressRequest {
   user?: any;
@@ -136,6 +138,9 @@ export default function routes(): Router {
         const valid = await bcrypt.compare(password, user.password);
         if (!valid) {
             return res.status(401).json({ message: 'Invalid credentials' });
+        }
+        if (!JWT_SECRET) {
+            return res.status(500).json({ message: 'Server configuration error' });
         }
         const token = jwt.sign({ id: user._id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: '7d' });
         return res.json({ token });
