@@ -55,35 +55,55 @@ export class SessionManager {
     private socketIdToPlayerId: { [key: string]: string } = {}
 
     public createSession(id: string, mapData: RealmData): void {
+        console.log(`[SessionManager] Creating session for realmId=${id}, rooms.length=${mapData.rooms?.length}`);
         const realm = new Session(id, mapData)
 
         this.sessions[id] = realm
     }
 
     public getSession(id: string): Session {
-        return this.sessions[id]
+        const session = this.sessions[id]
+        if (session) {
+            console.log(`[SessionManager] getSession: Found session for realmId=${id}, rooms.length=${session.map_data.rooms?.length}`);
+        } else {
+            console.log(`[SessionManager] getSession: No session for realmId=${id}`);
+        }
+        return session
     }
 
     public getPlayerSession(uid: string): Session {
         const realmId = this.playerIdToRealmId[uid]
+        console.log(`[SessionManager] getPlayerSession: uid=${uid}, realmId=${realmId}`);
+        console.log(`[SessionManager] Available sessions:`, Object.keys(this.sessions));
+        console.log(`[SessionManager] playerIdToRealmId mapping:`, this.playerIdToRealmId);
         return this.sessions[realmId]
     }
 
     public addPlayerToSession(socketId: string, realmId: string, uid: string, username: string, skin: string) {
+        console.log(`[SessionManager] addPlayerToSession: socketId=${socketId}, realmId=${realmId}, uid=${uid}, username=${username}, skin=${skin}`);
         this.sessions[realmId].addPlayer(socketId, uid, username, skin)
         this.playerIdToRealmId[uid] = realmId
         this.socketIdToPlayerId[socketId] = uid
+        console.log(`[SessionManager] Player added. Total players in session: ${this.sessions[realmId].getPlayerCount()}`);
+        console.log(`[SessionManager] All players in session:`, this.sessions[realmId].getPlayerIds());
+        console.log(`[SessionManager] socketIdToPlayerId mapping:`, this.socketIdToPlayerId);
     }
 
     public logOutPlayer(uid: string) {
+        console.log(`[SessionManager] logOutPlayer called: uid=${uid}`);
         const realmId = this.playerIdToRealmId[uid]
         // If the player is not in a realm, do nothing
-        if (!realmId) return
+        if (!realmId) {
+            console.log(`[SessionManager] Player not in any realm: uid=${uid}`);
+            return
+        }
 
         const player = this.sessions[realmId].getPlayer(uid)
+        console.log(`[SessionManager] Removing player from session: uid=${uid}, realmId=${realmId}`);
         delete this.socketIdToPlayerId[player.socketId]
         delete this.playerIdToRealmId[uid]
         this.sessions[realmId].removePlayer(uid)
+        console.log(`[SessionManager] Player removed. Total players in session: ${this.sessions[realmId].getPlayerCount()}`);
     }
 
     public getSocketIdsInRoom(realmId: string, roomIndex: number): string[] {
@@ -92,9 +112,16 @@ export class SessionManager {
 
     public logOutBySocketId(socketId: string) {
         const uid = this.socketIdToPlayerId[socketId]
-        if (!uid) return false
+        console.log(`[SessionManager] logOutBySocketId: socketId=${socketId}, uid=${uid}`);
+        console.log(`[SessionManager] Available socketIdToPlayerId mappings:`, Object.keys(this.socketIdToPlayerId));
+        if (!uid) {
+            console.log(`[SessionManager] No uid found for socketId: ${socketId}`);
+            return false
+        }
 
         this.logOutPlayer(uid)
+        delete this.socketIdToPlayerId[socketId]
+        delete this.playerIdToRealmId[uid]
         return true
     }
 
@@ -132,16 +159,52 @@ export class Session {
     }
 
     public addPlayer(socketId: string, uid: string, username: string, skin: string) {
+        console.log(`[Session] addPlayer called: socketId=${socketId}, uid=${uid}, username=${username}, skin=${skin}`);
+        // Remove player if they already exist (to handle reconnections)
         this.removePlayer(uid)
         const spawnIndex = this.map_data.spawnpoint.roomIndex
         const spawnX = this.map_data.spawnpoint.x
         const spawnY = this.map_data.spawnpoint.y
 
+        console.log(`[Session] addPlayer: spawnIndex=${spawnIndex}, rooms.length=${this.map_data.rooms.length}`);
+        if (!this.playerRooms.hasOwnProperty(spawnIndex)) {
+            throw new Error(`[Session] Invalid spawnIndex in addPlayer: ${spawnIndex}. playerRooms: ${JSON.stringify(Object.keys(this.playerRooms))}`);
+        }
+
+        // Find an available spawn position
+        let finalX = spawnX;
+        let finalY = spawnY;
+        const coordKey = `${spawnX}, ${spawnY}`;
+        
+        // If there are already players at the spawn point, find a nearby position
+        if (this.playerPositions[spawnIndex][coordKey] && this.playerPositions[spawnIndex][coordKey].size > 0) {
+            console.log(`[Session] Spawn point occupied, finding nearby position`);
+            // Try positions in a spiral pattern around the spawn point
+            const offsets = [
+                [0, 1], [1, 0], [0, -1], [-1, 0],  // Adjacent tiles
+                [1, 1], [-1, 1], [1, -1], [-1, -1], // Diagonal tiles
+                [0, 2], [2, 0], [0, -2], [-2, 0],  // 2 tiles away
+            ];
+            
+            for (const [dx, dy] of offsets) {
+                const testX = spawnX + dx;
+                const testY = spawnY + dy;
+                const testKey = `${testX}, ${testY}`;
+                
+                if (!this.playerPositions[spawnIndex][testKey] || this.playerPositions[spawnIndex][testKey].size === 0) {
+                    finalX = testX;
+                    finalY = testY;
+                    console.log(`[Session] Found available position at (${finalX}, ${finalY})`);
+                    break;
+                }
+            }
+        }
+
         const player: Player = {
             uid,
             username,
-            x: spawnX,
-            y: spawnY,
+            x: finalX,
+            y: finalY,
             room: spawnIndex,
             socketId: socketId,
             skin,
@@ -149,24 +212,38 @@ export class Session {
         }
 
         this.playerRooms[spawnIndex].add(uid)
-        const coordKey = `${spawnX}, ${spawnY}`
-        if (!this.playerPositions[spawnIndex][coordKey]) {
-            this.playerPositions[spawnIndex][coordKey] = new Set<string>()
+        const finalCoordKey = `${finalX}, ${finalY}`;
+        if (!this.playerPositions[spawnIndex][finalCoordKey]) {
+            this.playerPositions[spawnIndex][finalCoordKey] = new Set<string>()
         }
-        this.playerPositions[spawnIndex][coordKey].add(uid)
+        this.playerPositions[spawnIndex][finalCoordKey].add(uid)
         this.players[uid] = player
+        console.log(`[Session] Player added successfully at (${finalX}, ${finalY}). Total players: ${Object.keys(this.players).length}`);
+        console.log(`[Session] Players in room ${spawnIndex}: ${Array.from(this.playerRooms[spawnIndex])}`);
     }
 
     public removePlayer(uid: string): void {
-        if (!this.players[uid]) return
+        console.log(`[Session] removePlayer called: uid=${uid}`);
+        if (!this.players[uid]) {
+            console.log(`[Session] Player not found: uid=${uid}`);
+            return
+        }
 
         const player = this.players[uid]
+        console.log(`[Session] Removing player from room ${player.room}: uid=${uid}`);
         this.playerRooms[player.room].delete(uid)
 
         const coordKey = `${player.x}, ${player.y}`
-        delete this.playerPositions[player.room][coordKey]
+        if (this.playerPositions[player.room][coordKey]) {
+            this.playerPositions[player.room][coordKey].delete(uid)
+            // Remove the coordinate entry if no players are left at this position
+            if (this.playerPositions[player.room][coordKey].size === 0) {
+                delete this.playerPositions[player.room][coordKey]
+            }
+        }
 
         delete this.players[uid]
+        console.log(`[Session] Player removed. Total players: ${Object.keys(this.players).length}`);
     }
 
     public changeRoom(uid: string, roomIndex: number, x: number, y: number): string[] {
@@ -189,7 +266,9 @@ export class Session {
     public getPlayersInRoom(roomIndex: number): Player[] {
         const players = Array.from(this.playerRooms[roomIndex] || [])
             .map(uid => this.players[uid])
+            .filter(player => player !== undefined)
 
+        console.log(`[Session] getPlayersInRoom: roomIndex=${roomIndex}, players=${players.length}`);
         return players
     }
 
@@ -211,6 +290,10 @@ export class Session {
     }
 
     public getPlayerRoom(uid: string): number {
+        if (!this.players[uid]) {
+            console.log(`[Session] getPlayerRoom: Player not found: uid=${uid}`);
+            return 0; // Default to room 0 if player not found
+        }
         return this.players[uid].room
     }
 

@@ -7,6 +7,7 @@ import routes from './routes/routes'
 import { sessionManager } from './session'
 import mongoose from 'mongoose'
 import { expressjwt } from 'express-jwt'
+import jwt from 'jsonwebtoken'
 
 require('dotenv').config()
 
@@ -26,6 +27,26 @@ const io = new SocketIOServer(server, {
     origin: process.env.FRONTEND_URL
   }
 })
+
+// Add JWT authentication middleware for Socket.IO
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  
+  if (!token) {
+    console.log('[SOCKET] No JWT token provided in auth');
+    return next(new Error('Authentication error: No token provided'));
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    socket.data.user = decoded;
+    console.log('[SOCKET] JWT token verified for user:', decoded.id);
+    next();
+  } catch (error) {
+    console.log('[SOCKET] JWT token verification failed:', error);
+    return next(new Error('Authentication error: Invalid token'));
+  }
+});
 
 const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
 let jwtMiddleware = expressjwt({

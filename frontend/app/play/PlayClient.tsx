@@ -14,19 +14,23 @@ type PlayClientProps = {
     username: string
     access_token: string
     realmId: string
-    uid: string
     shareId: string
     initialSkin: string
     name: string
+    userId: string
+    isOwner: boolean
 }
 
-const PlayClient:React.FC<PlayClientProps> = ({ mapData, username, access_token, realmId, uid, shareId, initialSkin, name }) => {
+const PlayClient:React.FC<PlayClientProps> = ({ mapData, username, access_token, realmId, shareId, initialSkin, name, userId, isOwner }) => {
 
     const { setErrorModal, setDisconnectedMessage } = useModal()
 
     const [showIntroScreen, setShowIntroScreen] = useState(true)
 
     const [skin, setSkin] = useState(initialSkin)
+
+    // Debug logging
+    console.log('[PlayClient] Received props:', { userId, isOwner, realmId, shareId, username });
 
     useEffect(() => {
         const onShowKickedModal = (message: string) => { 
@@ -55,7 +59,7 @@ const PlayClient:React.FC<PlayClientProps> = ({ mapData, username, access_token,
     }, [])
 
     return (
-        <AgoraVideoChatProvider uid={uid}>
+        <AgoraVideoChatProvider>
             {!showIntroScreen && <div className='relative w-full h-screen flex flex-col-reverse sm:flex-col'>
                 <VideoBar />
                 <PixiApp 
@@ -64,9 +68,10 @@ const PlayClient:React.FC<PlayClientProps> = ({ mapData, username, access_token,
                     username={username} 
                     access_token={access_token} 
                     realmId={realmId} 
-                    uid={uid} 
                     shareId={shareId} 
                     initialSkin={skin} 
+                    userId={userId}
+                    isOwner={isOwner}
                 />
                 <PlayNavbar username={username} skin={skin}/>
             </div>}

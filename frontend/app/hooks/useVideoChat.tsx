@@ -17,7 +17,6 @@ const VideoChatContext = createContext<VideoChatContextType | undefined>(undefin
 
 interface AgoraVideoChatProviderProps {
     children: ReactNode
-    uid: string
 }
 
 interface VideoChatProviderProps {
