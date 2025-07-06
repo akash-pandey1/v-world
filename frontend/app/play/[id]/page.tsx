@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import NotFound from '@/app/not-found'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { formatEmailToName } from '@/utils/formatEmailToName'
-import jwt_decode from 'jwt-decode'
+import { jwtDecode } from 'jwt-decode'
 import PlayClient from '../PlayClient'
 import { defaultSkin, skins } from '@/utils/pixi/Player/skins'
 
@@ -23,21 +23,17 @@ export default function PlayPage({ params }: { params: { id: string } }) {
         const token = localStorage.getItem('token');
         if (!token) return { user: null, access_token: '' };
         try {
-            const user = (jwt_decode as unknown as (token: string) => any)(token);
+            const user = jwtDecode(token) as any;
+            console.log('[PlayPage] JWT decoded user:', user);
+            console.log('[PlayPage] JWT token raw:', token);
+            console.log('[PlayPage] User ID from JWT:', user?.id);
+            console.log('[PlayPage] User ID type:', typeof user?.id);
+            console.log('[PlayPage] All user properties:', Object.keys(user || {}));
             return { user, access_token: token };
-        } catch {
+        } catch (error) {
+            console.log('[PlayPage] Failed to decode JWT token:', error);
             return { user: null, access_token: '' };
         }
-    }
-
-    // Helper to get or create a guest uid
-    function getOrCreateGuestUid() {
-        let uid = localStorage.getItem('gather_uid');
-        if (!uid) {
-            uid = crypto.randomUUID();
-            localStorage.setItem('gather_uid', uid);
-        }
-        return uid;
     }
 
     useEffect(() => {
@@ -74,8 +70,11 @@ export default function PlayPage({ params }: { params: { id: string } }) {
     const { user, access_token } = getUserAndToken();
     const shareId = getShareId();
 
-    const uid = user ? user.id : getOrCreateGuestUid();
-    console.log('[PlayPage] Using uid:', uid);
+    // Backend will generate and manage UIDs, so we don't need to pass one
+    console.log('[PlayPage] Backend will handle UID generation');
+    console.log('[PlayPage] User ID:', user?.id, 'Realm owner ID:', realm.owner_id, 'Is owner:', user?.id === realm.owner_id);
+    console.log('[PlayPage] User object:', user);
+    console.log('[PlayPage] Realm object:', realm);
 
     // Optionally update visited realms if shareId is present and not owner
     // if (shareId && user && realm.owner_id !== user.id) {
@@ -88,10 +87,11 @@ export default function PlayPage({ params }: { params: { id: string } }) {
             username={user ? formatEmailToName(user.email) : ''} 
             access_token={access_token} 
             realmId={params.id} 
-            uid={uid} 
             shareId={shareId} 
             initialSkin={skin}
             name={realm.name}
+            userId={user?.id || ''}
+            isOwner={user?.id === realm.owner_id}
         />
     )
 }

@@ -31,12 +31,12 @@ export class PlayApp extends App {
 
     private socket: Socket | null = null
 
-    constructor(uid: string, realmId: string, realmData: RealmData, username: string, skin: string = defaultSkin, socket: Socket | null = null) {
+    constructor(realmId: string, realmData: RealmData, username: string, skin: string = defaultSkin, socket: Socket | null = null) {
         super(realmData)
-        this.uid = uid
         this.realmId = realmId
         this.player = new Player(skin, this, username, true)
         this.socket = socket
+        console.log('[PlayApp] Constructor called with socket:', socket ? 'available' : 'null');
     }
 
     override async loadRoom(index: number) {
@@ -133,7 +133,9 @@ export class PlayApp extends App {
     }
 
     private async updatePlayer(uid: string, player: any) {
+        console.log(`[PlayApp] updatePlayer called: uid=${uid}, player=`, player);
         if (uid in this.players) {
+            console.log(`[PlayApp] Updating existing player: ${uid}`);
             if (this.players[uid].skin !== player.skin) {
                 await this.players[uid].changeSkin(player.skin)
             }
@@ -141,6 +143,7 @@ export class PlayApp extends App {
                 this.players[uid].setPosition(player.x, player.y)
             }
         } else {
+            console.log(`[PlayApp] Spawning new player: ${uid}`);
             await this.spawnPlayer(player.uid, player.skin, player.username, player.x, player.y)
         }
     }
@@ -330,10 +333,14 @@ export class PlayApp extends App {
     }
 
     private onPlayerLeftRoom = (uid: string) => {
+        console.log('[FRONTEND] Player left room:', uid);
         if (this.players[uid]) {
+            console.log('[FRONTEND] Removing player from scene:', uid);
             this.players[uid].destroy()
             this.layers.object.removeChild(this.players[uid].parent)
             delete this.players[uid]
+        } else {
+            console.log('[FRONTEND] Player not found in scene:', uid);
         }
     }
 
@@ -343,11 +350,18 @@ export class PlayApp extends App {
 
     private onPlayerMoved = (data: any) => {
         console.log('[FRONTEND] onPlayerMoved received:', data);
-        if (this.blocked.has(`${data.x}, ${data.y}`)) return
+        console.log('[FRONTEND] Available players:', Object.keys(this.players));
+        if (this.blocked.has(`${data.x}, ${data.y}`)) {
+            console.log('[FRONTEND] Position blocked, ignoring move');
+            return;
+        }
 
         const player = this.players[data.uid]
         if (player) {
+            console.log('[FRONTEND] Moving player:', data.uid, 'to position:', data.x, data.y);
             player.moveToTile(data.x, data.y)
+        } else {
+            console.log('[FRONTEND] Player not found for uid:', data.uid);
         }
     }
 
@@ -451,7 +465,11 @@ export class PlayApp extends App {
     }
 
     private setUpSocketEvents = () => {
-        if (!this.socket) return;
+        if (!this.socket) {
+            console.log('[PlayApp] No socket available for setUpSocketEvents');
+            return;
+        }
+        console.log('[PlayApp] Setting up socket events');
         this.socket.on('playerLeftRoom', this.onPlayerLeftRoom)
         this.socket.on('playerJoinedRoom', this.onPlayerJoinedRoom)
         this.socket.on('playerMoved', this.onPlayerMoved)
@@ -461,6 +479,7 @@ export class PlayApp extends App {
         this.socket.on('disconnect', this.onDisconnect)
         this.socket.on('kicked', this.onKicked)
         this.socket.on('proximityUpdate', this.onProximityUpdate)
+        console.log('[PlayApp] Socket events set up successfully');
     }
 
     private removeSocketEvents = () => {
@@ -495,18 +514,41 @@ export class PlayApp extends App {
 
     // Add this method to sync all players from the socket event
     public async syncPlayersFromSocket(players: any[]) {
+        console.log('[PlayApp] syncPlayersFromSocket called with players:', players);
+        console.log('[PlayApp] Current players before sync:', Object.keys(this.players));
+        console.log('[PlayApp] Local uid:', this.uid);
+        
+        // If we don't have a UID yet, try to find the local player in the players list
+        if (!this.uid) {
+            // The local player should be the one that's not in our players list yet
+            // and should have the same username as our local player
+            for (const player of players) {
+                if (player.username === this.player.username) {
+                    this.uid = player.uid;
+                    console.log('[PlayApp] Set local UID from players list:', this.uid);
+                    break;
+                }
+            }
+        }
+        
         const currentUids = new Set(Object.keys(this.players));
         const incomingUids = new Set<string>();
         for (const player of players) {
-            if (player.uid === this.uid) continue; // skip local player
+            if (player.uid === this.uid) {
+                console.log('[PlayApp] Skipping local player:', player.uid);
+                continue; // skip local player
+            }
+            console.log('[PlayApp] Processing player:', player.uid);
             incomingUids.add(player.uid);
             await this.updatePlayer(player.uid, player);
         }
         // Remove players that are no longer present
         for (const uid of currentUids) {
             if (!incomingUids.has(uid)) {
+                console.log('[PlayApp] Removing player:', uid);
                 this.onPlayerLeftRoom(uid);
             }
         }
+        console.log('[PlayApp] Players after sync:', Object.keys(this.players));
     }
 }

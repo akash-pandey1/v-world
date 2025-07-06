@@ -13,12 +13,13 @@ type PixiAppProps = {
     username: string
     access_token: string
     realmId: string
-    uid: string
     shareId: string
     initialSkin: string
+    userId: string
+    isOwner: boolean
 }
 
-const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_token, realmId, uid, shareId, initialSkin }) => {
+const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_token, realmId, shareId, initialSkin, userId, isOwner }) => {
 
     const appRef = useRef<PlayApp | null>(null)
     const { setModal, setLoadingText, setFailedConnectionMessage, setErrorModal } = useModal()
@@ -28,37 +29,50 @@ const PixiApp:React.FC<PixiAppProps> = ({ className, mapData, username, access_t
         const mount = async () => {
             // Defensive check: ensure all rooms have tilemap
             if (!mapData.rooms || !Array.isArray(mapData.rooms) || mapData.rooms.some(room => !room.tilemap)) {
-                setErrorModal('Room data is corrupted or missing. Please contact support.');
+                setErrorModal('Failed To Connect');
                 return;
             }
             setModal('Loading')
             setLoadingText('Connecting to server...')
-            // Connect to backend via socket.io
-            console.log('[PixiApp] Connecting socket with uid:', uid);
+            // Connect to backend via socket.io - backend will generate UID
+            console.log('[PixiApp] Connecting socket - backend will generate UID');
             socket = io(process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001', {
-                query: { uid },
                 transports: ['websocket'],
                 auth: { token: access_token }
             });
             socket.on('connect', () => {
-                console.log('[SOCKET] Connected, emitting joinRealm', { realmId, shareId, uid });
-                socket.emit('joinRealm', { realmId, shareId })
+                console.log('[SOCKET] Connected, emitting joinRealm', { realmId, shareId, userId, isOwner });
+                socket?.emit('joinRealm', { realmId, shareId, userId, isOwner })
+            });
+            
+            socket.on('disconnect', () => {
+                console.log('[SOCKET] Disconnected');
+            });
+            
+            socket.on('error', (error: any) => {
+                console.log('[SOCKET] Error:', error);
             });
             // Listen for playerJoinedRoom
             socket.on('playerJoinedRoom', async (player: any) => {
                 console.log('[SOCKET] playerJoinedRoom received:', player);
+                console.log('[SOCKET] playerJoinedRoom details:', { uid: player.uid, username: player.username, x: player.x, y: player.y });
                 if (appRef.current) {
-                    await appRef.current.updatePlayer(player.uid, player);
+                    // Use the public method instead of private updatePlayer
+                    await appRef.current.syncPlayersFromSocket([player]);
                 }
             });
+            
+
             // Listen for currentPlayers (full list on join)
             socket.on('currentPlayers', async (players: any[]) => {
                 console.log('[SOCKET] currentPlayers received:', players);
+                console.log('[SOCKET] currentPlayers length:', players.length);
+                console.log('[SOCKET] currentPlayers details:', players.map(p => ({ uid: p.uid, username: p.username, x: p.x, y: p.y })));
                 if (appRef.current) {
                     await appRef.current.syncPlayersFromSocket(players);
                 }
             });
-            const app = new PlayApp(uid, realmId, mapData, username, initialSkin, socket)
+            const app = new PlayApp(realmId, mapData, username, initialSkin, socket)
             appRef.current = app
             setLoadingText('Loading game...')
             console.log('Before app.init');
