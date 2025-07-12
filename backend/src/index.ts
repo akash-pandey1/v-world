@@ -21,11 +21,11 @@ const isProd = process.env.NODE_ENV === 'production';
 const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
 
 app.use(cors({
-  origin: '*',                   // Allow all origins
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  // Allowed methods
-  allowedHeaders: ['*'],         // Allow all headers
-  // credentials: true           // Don't use with wildcard origin
+  origin: frontendUrl,                 
 }));
+
+app.options('*', cors())
+
 
 app.use(express.json({ limit: '20mb' }))
 app.use(express.urlencoded({ limit: '20mb', extended: true }))
@@ -33,7 +33,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }))
 // Initialize Socket.IO server with same CORS config
 const io = new SocketIOServer(server, {
   cors: {
-    origin :'*'
+    origin :frontendUrl
   }
 })
 

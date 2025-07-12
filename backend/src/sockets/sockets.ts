@@ -229,10 +229,8 @@ export function sockets(io: Server) {
                     console.log('[SOCKET] Other players detected, emitting playerJoinedRoom to existing players. existingPlayers count:', existingPlayers.length);
                     emit('playerJoinedRoom', player);
                     
-                    // Also send updated currentPlayers list to all existing players (now including the new player)
-                    const allPlayersAfterJoin = newSession.getPlayersInRoom(player.room);
-                    console.log('[SOCKET] Sending updated currentPlayers to existing players. allPlayersAfterJoin count:', allPlayersAfterJoin.length);
-                    emit('currentPlayers', allPlayersAfterJoin);
+                    // DO NOT send currentPlayers again - this causes duplicates!
+                    // The existing players already have the correct state
                 } else {
                     console.log('[SOCKET] First player joining, no need to notify others');
                 }
@@ -278,11 +276,8 @@ export function sockets(io: Server) {
                 console.log(`[SOCKET] Player logged out successfully: uid=${uid}`);
                 emitToSocketIds(socketIds, 'playerLeftRoom', uid)
                 
-                // Send updated currentPlayers to remaining players
-                const remainingPlayers = session.getPlayersInRoom(session.getPlayerRoom(uid));
-                console.log(`[SOCKET] Remaining players after disconnect: ${remainingPlayers.length}`);
-                console.log(`[SOCKET] Session after disconnect: ${session.id}, total players: ${session.getPlayerCount()}`);
-                emitToSocketIds(socketIds, 'currentPlayers', remainingPlayers);
+                // DO NOT send currentPlayers again - this can cause issues
+                // The remaining players will handle the player removal via playerLeftRoom
             } else {
                 console.log(`[SOCKET] Failed to log out player: uid=${uid}`);
             }
