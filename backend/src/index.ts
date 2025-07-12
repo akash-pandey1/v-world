@@ -19,20 +19,10 @@ connectDB();
 // Determine frontend URL based on environment
 const isProd = process.env.NODE_ENV === 'production';
 const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
-const allowedOrigins = [frontendUrl,'https://v-world-info-nexts-projects.vercel.app',
-  'https://v-world-git-main-info-nexts-projects.vercel.app','https://v-world-b6yqv6xyx-info-nexts-projects.vercel.app']; // You can add more if needed
 
+// CORS configuration - allow all origins
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow Postman or no-origin requests
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('CORS not allowed from: ' + origin));
-    }
-  },
+  origin: true, // Allow all origins
   credentials: true
 }));
 
