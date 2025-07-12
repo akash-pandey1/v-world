@@ -18,19 +18,22 @@ connectDB();
 
 // Determine frontend URL based on environment
 const isProd = process.env.NODE_ENV === 'production';
-const frontendUrls = ['https://v-world-chi.vercel.app/'];
+const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
+const allowedOrigins = [frontendUrl,'https://v-world-info-nexts-projects.vercel.app',
+  'https://v-world-git-main-info-nexts-projects.vercel.app','https://v-world-b6yqv6xyx-info-nexts-projects.vercel.app']; // You can add more if needed
 
 app.use(cors({
   origin: function (origin, callback) {
-    // For tools like Postman or direct requests with no origin
+    // Allow Postman or no-origin requests
     if (!origin) return callback(null, true);
-    if (frontendUrls.includes(origin)) {
-      return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
     } else {
-      return callback(new Error('Not allowed by CORS'));
+      callback(new Error('CORS not allowed from: ' + origin));
     }
   },
-  credentials: true // if you're using cookies or sessions
+  credentials: true
 }));
 
 app.use(express.json({ limit: '20mb' }))
@@ -39,7 +42,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }))
 // Initialize Socket.IO server
 const io = new SocketIOServer(server, {
   cors: {
-    origin: frontendUrls[0]
+    origin: frontendUrl
   }
 })
 
@@ -117,7 +120,7 @@ if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
 server.listen(portNumber, () => {
   console.log(`🚀 V-World server is running on port ${portNumber}`)
   console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
-  console.log(`🌐 Frontend URL: ${frontendUrls[0] || 'http://localhost:3000'}`)
+  console.log(`🌐 Frontend URL: ${frontendUrl || 'http://localhost:3000'}`)
 })
 
 
