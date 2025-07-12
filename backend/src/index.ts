@@ -18,11 +18,20 @@ connectDB();
 
 // Determine frontend URL based on environment
 const isProd = process.env.NODE_ENV === 'production';
-const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
+const frontendUrls = ['https://v-world-chi.vercel.app/'];
 
 app.use(cors({
-    origin: frontendUrl
-}))
+  origin: function (origin, callback) {
+    // For tools like Postman or direct requests with no origin
+    if (!origin) return callback(null, true);
+    if (frontendUrls.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true // if you're using cookies or sessions
+}));
 
 app.use(express.json({ limit: '20mb' }))
 app.use(express.urlencoded({ limit: '20mb', extended: true }))
@@ -30,7 +39,7 @@ app.use(express.urlencoded({ limit: '20mb', extended: true }))
 // Initialize Socket.IO server
 const io = new SocketIOServer(server, {
   cors: {
-    origin: frontendUrl
+    origin: frontendUrls[0]
   }
 })
 
@@ -108,7 +117,7 @@ if (isNaN(portNumber) || portNumber < 1 || portNumber > 65535) {
 server.listen(portNumber, () => {
   console.log(`🚀 V-World server is running on port ${portNumber}`)
   console.log(`📡 Environment: ${process.env.NODE_ENV || 'development'}`)
-  console.log(`🌐 Frontend URL: ${frontendUrl || 'http://localhost:3000'}`)
+  console.log(`🌐 Frontend URL: ${frontendUrls[0] || 'http://localhost:3000'}`)
 })
 
 

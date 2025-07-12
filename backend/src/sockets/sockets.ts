@@ -10,20 +10,18 @@ import { Realm } from '../Realm'
 import { v4 as uuidv4 } from 'uuid'
 
 const joiningInProgress = new Set<string>()
-// Map socket IDs to generated UIDs
+// Map socket IDs to UIDs - use user ID from JWT instead of generating new UUIDs
 const socketToUid = new Map<string, string>()
 
 export function sockets(io: Server) {
     // Handle a connection
     io.on('connection', (socket) => {
-        // Generate a unique UID for this socket connection
-        const generatedUid = uuidv4()
-        socketToUid.set(socket.id, generatedUid)
-        console.log(`[SOCKET] New connection: socketId=${socket.id}, generatedUid=${generatedUid}`)
+        // Don't generate UID here - wait until we have user data from JWT
+        console.log(`[SOCKET] New connection: socketId=${socket.id}`)
 
         function on(eventName: string, _schema: any, callback: OnEventCallback) {
             socket.on(eventName, (data: any) => {
-                // Use generated UID instead of query UID
+                // Use UID from socket mapping
                 const uid = socketToUid.get(socket.id)
                 if (!uid) {
                     console.log(`[SOCKET] No UID found for socketId: ${socket.id}`);
@@ -31,7 +29,7 @@ export function sockets(io: Server) {
                 }
                 const session = sessionManager.getPlayerSession(uid)
                 if (!session) {
-                    console.log(`[SOCKET] No session found for generated uid: ${uid}`);
+                    console.log(`[SOCKET] No session found for uid: ${uid}`);
                     return
                 }
                 callback({ session, data })
@@ -80,18 +78,22 @@ export function sockets(io: Server) {
         }
 
         socket.on('joinRealm', async (realmData: any) => {
-            const uid = socketToUid.get(socket.id)
-            if (!uid) {
-                console.log('[SOCKET] No UID found for socket during joinRealm');
-                socket.emit('failedToJoinRoom', 'Internal error: No UID assigned');
-                return
-            }
-            
             // Get user data from authenticated socket
             const user = socket.data.user;
             console.log('[SOCKET] Authenticated user from JWT:', user);
             
-            console.log('[SOCKET] joinRealm called. generatedUid:', uid, 'realmData.uid:', realmData.uid);
+            if (!user || !user.id) {
+                console.log('[SOCKET] No user data or user ID found in JWT');
+                socket.emit('failedToJoinRoom', 'Authentication failed');
+                return;
+            }
+            
+            // Use user ID as UID for consistency across reconnections
+            const uid = user.id;
+            socketToUid.set(socket.id, uid);
+            console.log(`[SOCKET] Using user ID as UID: socketId=${socket.id}, uid=${uid}`);
+            
+            console.log('[SOCKET] joinRealm called. uid:', uid, 'realmData.uid:', realmData.uid);
             console.log('[SOCKET] socket.id:', socket.id, 'realmData.realmId:', realmData.realmId);
             console.log('[SOCKET] realmData.shareId:', realmData.shareId);
             console.log('[SOCKET] realmData.userId:', realmData.userId, 'realmData.isOwner:', realmData.isOwner);
@@ -149,6 +151,36 @@ export function sockets(io: Server) {
             }
             console.log('[SOCKET] Final map_data before session creation: rooms.length=', map_data.rooms.length);
 
+            // Check authorization before proceeding
+            if (realm.only_owner) {
+                console.log('[SOCKET] Realm is private, rejecting join. uid:', uid);
+                return rejectJoin('This realm is private right now. Come back later!')
+            }
+            
+            // Check if user is the owner using JWT user ID
+            const jwtUserId = user?.id;
+            const isOwner = jwtUserId === realm.owner_id;
+            console.log('[SOCKET] Owner check:', { 
+                isOwner, 
+                jwtUserId: jwtUserId, 
+                realmOwnerId: realm.owner_id, 
+                realmDataUserId: realmData.userId, 
+                realmDataIsOwner: realmData.isOwner 
+            });
+            
+            // Allow owner to join without shareId, or allow anyone with correct shareId
+            if (isOwner) {
+                console.log('[SOCKET] Player is owner, allowing join. uid:', uid);
+            } else if (realmData.shareId && realm.share_id === realmData.shareId) {
+                console.log('[SOCKET] Player authorized via share link, allowing join. uid:', uid);
+            } else if (!realmData.shareId) {
+                console.log('[SOCKET] No shareId provided and not owner, rejecting join. uid:', uid);
+                return rejectJoin('Share link is required to join this realm.')
+            } else {
+                console.log('[SOCKET] Share link mismatch, rejecting join. uid:', uid, 'realm.share_id:', realm.share_id, 'realmData.shareId:', realmData.shareId);
+                return rejectJoin('The share link has been changed.')
+            }
+
             const join = async () => {
                 // Defensive: check map_data.rooms
                 console.log('[SOCKET] About to create session with map_data.rooms.length:', map_data.rooms.length);
@@ -178,7 +210,7 @@ export function sockets(io: Server) {
                 
                 // Get existing players BEFORE adding the new player
                 const existingSession = sessionManager.getSession(realmData.realmId);
-                const existingPlayers = existingSession ? existingSession.getPlayersInRoom(0) : []; // Assuming room 0 for now
+                const existingPlayers = existingSession ? existingSession.getPlayersInRoom(0) : [];
                 console.log('[SOCKET] Existing players before join:', existingPlayers.map((p: any) => ({ uid: p.uid, username: p.username })));
                 
                 sessionManager.addPlayerToSession(socket.id, realmData.realmId, uid, username, realmData.skin)
@@ -212,43 +244,15 @@ export function sockets(io: Server) {
                 
                 // Add a timeout to clear joiningInProgress in case of issues
                 setTimeout(() => {
-                    if (joiningInProgress.has(uid)) {
-                        console.log('[SOCKET] Clearing stuck joiningInProgress for uid:', uid);
-                        joiningInProgress.delete(uid);
-                    }
-                }, 10000); // 10 second timeout
+                    joiningInProgress.delete(uid)
+                }, 10000)
             }
 
-            // Always call join() after loading map_data, regardless of owner
-            if (realm.only_owner) {
-                console.log('[SOCKET] Realm is private, rejecting join. uid:', uid);
-                return rejectJoin('This realm is private right now. Come back later!')
-            }
-            
-            // Check if user is the owner using JWT user ID
-            const jwtUserId = user?.id;
-            const isOwner = jwtUserId === realm.owner_id;
-            console.log('[SOCKET] Owner check:', { 
-                isOwner, 
-                jwtUserId: jwtUserId, 
-                realmOwnerId: realm.owner_id, 
-                realmDataUserId: realmData.userId, 
-                realmDataIsOwner: realmData.isOwner 
-            });
-            
-            // Allow owner to join without shareId, or allow anyone with correct shareId
-            if (isOwner) {
-                console.log('[SOCKET] Player is owner, allowing join. uid:', uid);
-                return join()
-            } else if (realmData.shareId && realm.share_id === realmData.shareId) {
-                console.log('[SOCKET] Player authorized via share link, calling join(). uid:', uid);
-                return join()
-            } else if (!realmData.shareId) {
-                console.log('[SOCKET] No shareId provided and not owner, rejecting join. uid:', uid);
-                return rejectJoin('Share link is required to join this realm.')
-            } else {
-                console.log('[SOCKET] Share link mismatch, rejecting join. uid:', uid, 'realm.share_id:', realm.share_id, 'realmData.shareId:', realmData.shareId);
-                return rejectJoin('The share link has been changed.')
+            try {
+                await join()
+            } catch (error) {
+                console.error('[SOCKET] Error during join:', error)
+                rejectJoin('Internal server error during join')
             }
         })
 
