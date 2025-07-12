@@ -30,6 +30,7 @@ export interface Room {
 
 export interface Player {
     uid: string,
+    userId: string, // JWT user ID for identifying the local player
     username: string,
     x: number,
     y: number,
@@ -79,9 +80,9 @@ export class SessionManager {
         return this.sessions[realmId]
     }
 
-    public addPlayerToSession(socketId: string, realmId: string, uid: string, username: string, skin: string) {
-        console.log(`[SessionManager] addPlayerToSession: socketId=${socketId}, realmId=${realmId}, uid=${uid}, username=${username}, skin=${skin}`);
-        this.sessions[realmId].addPlayer(socketId, uid, username, skin)
+    public addPlayerToSession(socketId: string, realmId: string, uid: string, username: string, skin: string, userId: string) {
+        console.log(`[SessionManager] addPlayerToSession: socketId=${socketId}, realmId=${realmId}, uid=${uid}, username=${username}, skin=${skin}, userId=${userId}`);
+        this.sessions[realmId].addPlayer(socketId, uid, username, skin, userId)
         this.playerIdToRealmId[uid] = realmId
         this.socketIdToPlayerId[socketId] = uid
         console.log(`[SessionManager] Player added. Total players in session: ${this.sessions[realmId].getPlayerCount()}`);
@@ -158,8 +159,8 @@ export class Session {
         }
     }
 
-    public addPlayer(socketId: string, uid: string, username: string, skin: string) {
-        console.log(`[Session] addPlayer called: socketId=${socketId}, uid=${uid}, username=${username}, skin=${skin}`);
+    public addPlayer(socketId: string, uid: string, username: string, skin: string, userId: string) {
+        console.log(`[Session] addPlayer called: socketId=${socketId}, uid=${uid}, username=${username}, skin=${skin}, userId=${userId}`);
         // Remove player if they already exist (to handle reconnections)
         this.removePlayer(uid)
         const spawnIndex = this.map_data.spawnpoint.roomIndex
@@ -202,6 +203,7 @@ export class Session {
 
         const player: Player = {
             uid,
+            userId: userId, // Assuming uid is the userId for now
             username,
             x: finalX,
             y: finalY,

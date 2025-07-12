@@ -20,21 +20,28 @@ connectDB();
 const isProd = process.env.NODE_ENV === 'production';
 const frontendUrl = isProd ? process.env.FRONTEND_URL_PROD : process.env.FRONTEND_URL;
 
-// CORS configuration - allow all origins
 app.use(cors({
-  origin: true, // Allow all origins
-  credentials: true
+  origin: '*',                   // Allow all origins
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],  // Allowed methods
+  allowedHeaders: ['*'],         // Allow all headers
+  // credentials: true           // Don't use with wildcard origin
 }));
 
 app.use(express.json({ limit: '20mb' }))
 app.use(express.urlencoded({ limit: '20mb', extended: true }))
 
-// Initialize Socket.IO server
+// Initialize Socket.IO server with same CORS config
 const io = new SocketIOServer(server, {
   cors: {
-    origin: frontendUrl
+    origin :'*'
   }
 })
+
+// JWT_SECRET must be declared before Socket.IO middleware
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 // Add JWT authentication middleware for Socket.IO
 io.use((socket, next) => {
@@ -61,10 +68,6 @@ io.use((socket, next) => {
   }
 });
 
-const JWT_SECRET = process.env.JWT_SECRET ;
-if (!JWT_SECRET) {
-  throw new Error('JWT_SECRET environment variable is required');
-}
 let jwtMiddleware = expressjwt({
   secret: JWT_SECRET,
   algorithms: ['HS256'],

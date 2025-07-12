@@ -518,13 +518,30 @@ export class PlayApp extends App {
         console.log('[PlayApp] Current players before sync:', Object.keys(this.players));
         console.log('[PlayApp] Local uid:', this.uid);
 
-        // Set local UID if not set
+        // Set local UID if not set - use JWT user ID instead of username matching
         if (!this.uid) {
+            // Get the JWT user ID from the socket auth data
+            const socketAuth = (this.socket as any)?.auth;
+            const jwtUserId = socketAuth?.userId || socketAuth?.user?.id;
+            console.log('[PlayApp] JWT user ID from socket:', jwtUserId);
+            
+            // Find the player that matches our JWT user ID
             for (const player of players) {
-                if (player.username === this.player.username) {
+                if (player.userId === jwtUserId) {
                     this.uid = player.uid;
-                    console.log('[PlayApp] Set local UID from players list:', this.uid);
+                    console.log('[PlayApp] Set local UID from JWT user ID match:', this.uid);
                     break;
+                }
+            }
+            
+            // Fallback to username matching if JWT ID not available
+            if (!this.uid) {
+                for (const player of players) {
+                    if (player.username === this.player.username) {
+                        this.uid = player.uid;
+                        console.log('[PlayApp] Set local UID from username match (fallback):', this.uid);
+                        break;
+                    }
                 }
             }
         }
