@@ -206,14 +206,15 @@ export function sockets(io: Server) {
 
                 // Use JWT user data for username
                 const username = user?.name || formatEmailToName(user?.email) || 'Anonymous';
-                console.log('[SOCKET] About to add player to session. uid:', uid, 'socketId:', socket.id, 'realmId:', realmData.realmId, 'username:', username);
+                const jwtUserId = user?.id || uid; // Use JWT user ID or fallback to uid
+                console.log('[SOCKET] About to add player to session. uid:', uid, 'socketId:', socket.id, 'realmId:', realmData.realmId, 'username:', username, 'jwtUserId:', jwtUserId);
                 
                 // Get existing players BEFORE adding the new player
                 const existingSession = sessionManager.getSession(realmData.realmId);
                 const existingPlayers = existingSession ? existingSession.getPlayersInRoom(0) : [];
                 console.log('[SOCKET] Existing players before join:', existingPlayers.map((p: any) => ({ uid: p.uid, username: p.username })));
                 
-                sessionManager.addPlayerToSession(socket.id, realmData.realmId, uid, username, realmData.skin)
+                sessionManager.addPlayerToSession(socket.id, realmData.realmId, uid, username, realmData.skin, jwtUserId)
                 const newSession = sessionManager.getPlayerSession(uid)
                 const player = newSession.getPlayer(uid)   
                 console.log('[SOCKET] Player added successfully. player:', player);

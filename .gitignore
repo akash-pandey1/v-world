@@ -11,6 +11,8 @@ frontend/coverage
 frontend/.next/
 frontend/out/
 
+backend/src/room_tilemaps/
+
 # production
 frontend/build
 
