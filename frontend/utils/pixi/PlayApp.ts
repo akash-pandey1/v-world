@@ -134,6 +134,13 @@ export class PlayApp extends App {
 
     public async updatePlayer(uid: string, player: any) {
         console.log(`[PlayApp] updatePlayer called: uid=${uid}, player=`, player);
+        
+        // Skip if this is the local player
+        if (uid === this.uid) {
+            console.log(`[PlayApp] Skipping local player in updatePlayer: ${uid}`);
+            return;
+        }
+        
         if (uid in this.players) {
             console.log(`[PlayApp] Updating existing player: ${uid}`);
             if (this.players[uid].skin !== player.skin) {
@@ -345,7 +352,22 @@ export class PlayApp extends App {
     }
 
     private onPlayerJoinedRoom = (playerData: any) => {
-        this.updatePlayer(playerData.uid, playerData)
+        console.log('[PlayApp] onPlayerJoinedRoom received:', playerData);
+        
+        // Skip if this is the local player
+        if (playerData.uid === this.uid) {
+            console.log('[PlayApp] Skipping local player in onPlayerJoinedRoom:', playerData.uid);
+            return;
+        }
+        
+        // Check if player already exists to prevent duplicates
+        if (playerData.uid in this.players) {
+            console.log('[PlayApp] Player already exists, updating instead of creating new:', playerData.uid);
+            this.updatePlayer(playerData.uid, playerData);
+        } else {
+            console.log('[PlayApp] Creating new player from onPlayerJoinedRoom:', playerData.uid);
+            this.updatePlayer(playerData.uid, playerData);
+        }
     }
 
     private onPlayerMoved = (data: any) => {
@@ -546,7 +568,16 @@ export class PlayApp extends App {
             }
         }
 
+        // Clear existing players first to prevent duplicates
         const currentUids = new Set(Object.keys(this.players));
+        for (const uid of currentUids) {
+            if (uid !== this.uid) {
+                console.log('[PlayApp] Removing existing player before sync:', uid);
+                this.onPlayerLeftRoom(uid);
+            }
+        }
+
+        // Add new players
         const incomingUids = new Set<string>();
         for (const player of players) {
             if (player.uid === this.uid) {
@@ -556,13 +587,7 @@ export class PlayApp extends App {
             incomingUids.add(player.uid);
             await this.updatePlayer(player.uid, player);
         }
-        // Remove players that are no longer present
-        for (const uid of currentUids) {
-            if (uid !== this.uid && !incomingUids.has(uid)) {
-                console.log('[PlayApp] Removing player:', uid);
-                this.onPlayerLeftRoom(uid);
-            }
-        }
+        
         console.log('[PlayApp] Players after sync:', Object.keys(this.players));
     }
 }
