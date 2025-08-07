@@ -30,7 +30,7 @@ export default function SignUp() {
   };
 
   return (
-    <div className='flex flex-col items-center w-full pt-56'>
+    <div className='flex flex-col items-center w-full pt-56 h-dvh'>
       <form onSubmit={handleSubmit} className='flex flex-col gap-4 w-80 p-8 bg-white rounded shadow'>
         <h2 className='text-2xl font-bold mb-2 text-center'>Sign Up</h2>
         <input
