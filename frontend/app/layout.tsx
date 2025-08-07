@@ -18,7 +18,7 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "V-World",
+  title: "V-World by Akash Pandey",
   description: "A collaborative virtual space app where users can create and customize their own realms.",
 }
 
